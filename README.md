@@ -1,4 +1,4 @@
-# autoSYNC
+# autoSYNC AIO (new version of autoSYNC)
 ## "The Golden Network" template alternative
 Synchronizes meraki network settings from a parent network (golden network) to child networks for a more flexible template alternative. The script runs in a constantly, monitoring change-logs to detect changes to child networks or the master. If any children are out of compliance, the settings are reverted to the master settings. While any changes to the master will be replicated out to all children. The tool is smart, only pushing the differential config, allowing for much greater scale and API efficiency.
 
@@ -24,7 +24,7 @@ Synchronizes meraki network settings from a parent network (golden network) to c
 1. Latest Meraki python library (1.x or later)
 
 
-# what works today? **Updated[Nov 6 '20]**
+# what works today? 
 
 ###### General (working)
 * **Gold** Master network changes replicate to children networks
@@ -38,6 +38,7 @@ Synchronizes meraki network settings from a parent network (golden network) to c
 ###### Wireless (working)
 * iPSK w/o radius keys
 * SSID Syncronization
+* aironet Extensions
 * RF-Profiles
 * Wireless Network Settings
 * Traffic Analysis
@@ -57,19 +58,8 @@ Synchronizes meraki network settings from a parent network (golden network) to c
 * Switch QoS Rules
 * Switch Power Management
 
-## what's next?
 
-###### General (in progress)
-
-* Named Org-Whitelist(instead of org_id)
-* Whitelist Validation (makes sure all orgs that are inscope are accessible via API)
-
-###### Wireless (in progress)
-* Scanning API Receivers (no API endpoint currently)
-
-###### Switching (future)
-* auto-STP mapping based on switch type (ex. MS425 priority of 4096 vs MS210 with priority of 32768)
-* auto-Aggregation
-* port-based TAG syncronization (syncs ports across switches)
-* autoMAC integration, like API Secure-Connect (port provisioning and port-profiling) 
-* Adaptive Policy assignment and sync across networks
+###### MG Cellular Gateway  (working)
+* Subnet pool info
+* Gateway Uplink settings
+* Connectivity Monitoring Destinations
