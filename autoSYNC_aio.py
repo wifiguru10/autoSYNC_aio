@@ -8,7 +8,7 @@
 
 import meraki.aio
 from datetime import datetime
-import time
+from time import *
 import copy
 import sys,os
 import asyncio
@@ -24,15 +24,12 @@ import get_keys as g
 #Defaults.... get overriden by autoSYNC.cfg
 orgs_whitelist = [] 
 WRITE = True
-SWITCH = False
 tag_target = ''
-tag_master = ''
+tag_golden = ''
 TAGS = []
-
+cfg = {}
 
 def loadCFG(db,filename):
-
-    cfg = {}
 
     if not os.path.exists(filename):
         print(f'{bc.FAIL}Config file [{filename}] is not found, please copy "autoSYNC.cfg.default" to "autoSYNC.cfg", edit and try running again{bc.ENDC}')
@@ -42,6 +39,8 @@ def loadCFG(db,filename):
     print("LOADING CONFIG")
     config = configparser.ConfigParser()
     config.read(filename)
+
+    cfg['filename'] = filename
 
     if 'true' in config['autoSYNC']['LOOP'].lower():
         cfg['LOOP'] = True
@@ -61,16 +60,15 @@ def loadCFG(db,filename):
         cfg['whitelist'] = config['autoSYNC']['Orgs'].replace(' ','').split(',')
 
 
-    if 'true' in config['autoSYNC']['SWITCH'].lower(): 
-        SWITCH = True
-        cfg['SWITCH'] = True
-    else: 
-        SWITCH = False
-        cfg['SWITCH'] = False
+    fields = ['SYNC_MR', 'SYNC_MS', 'SYNC_MX', 'SYNC_MG']
+    for f in fields:
+        if 'true' in config['autoSYNC'][f].lower():
+            cfg[f] = True
+        else: cfg[f] = False
 
 
     cfg['tag_target'] = config['TAG']['TARGET']
-    cfg['tag_master'] = config['TAG']['MASTER']
+    cfg['tag_golden'] = config['TAG']['GOLDEN']
 
 
 #    cfg['adminEmails'] = config['ChangeLog']['emails'].replace(' ','').lower().split(',')
@@ -79,14 +77,13 @@ def loadCFG(db,filename):
     return cfg
 
 
-async def loadMNET(db, mNets, thn):
+async def loadMNET(db, cfg, mNets, thn):
     if not thn in mNets:
         if not WRITE: print(f'WRITE IS FALSE!!!')
-        mNets[thn] = await mNET(db, thn, WRITE).loadCache()
+        mNets[thn] = await mNET(db, thn, cfg, WRITE).loadCache()
     return thn
 
 async def main():
-    import time
     # client_query() # this queries current org and all client information and builds database
     # exit()
 
@@ -109,13 +106,13 @@ async def main():
 
         th_array = []
         tag_target = cfg['tag_target']
-        tag_master = cfg['tag_master']
+        tag_golden = cfg['tag_golden']
     #    adminEmails = cfg['adminEmails']
         orgs_whitelist = cfg['whitelist']
         WRITE = cfg['WRITE']
-        SWITCH = cfg['SWITCH']
+        
 
-        th = tagHelper2_aio.tagHelper(aiomeraki, tag_target, tag_master, orgs_whitelist)
+        th = tagHelper2_aio.tagHelper(aiomeraki, tag_target, tag_golden, orgs_whitelist)
         await th.sync()
         orgs = th.orgs #get a lit of orgs
         
@@ -139,7 +136,7 @@ async def main():
             print()
             print(f'\t{bcolors.HEADER}****************************{bcolors.FAIL}START LOOP{bcolors.HEADER}*****************************')
             print(bcolors.ENDC)
-            startTime = time.time()
+            startTime = time()
 
             if WRITE:
                 print(f'{bcolors.OKGREEN}WRITE MODE[{bcolors.WARNING}ENABLED{bcolors.OKGREEN}]{bcolors.ENDC}')
@@ -154,16 +151,16 @@ async def main():
             print()
             #Master Loader section
             netCount = 0
-            startTime = time.time()
+            startTime = time()
 
-            loadMNETTasks = [loadMNET(aiomeraki, mNets, thn) for thn in th.nets]
+            loadMNETTasks = [loadMNET(aiomeraki, cfg, mNets, thn) for thn in th.nets]
             for task in asyncio.as_completed(loadMNETTasks):
                 thn = await task
                 netCount += 1
                 if loop_count == 0:
                     print(f'{bc.WARNING}Network #{netCount} of [{len(th.nets)}] networks {bc.ENDC}')
                 
-                if not tag_master in th.nets[thn]['tags']:
+                if not tag_golden in th.nets[thn]['tags']:
                     clh_clones.addNetwork(thn) #this goes into the CLONES bucket
                 else:
                     if master_netid != thn:
@@ -172,7 +169,7 @@ async def main():
                         print(f'MASTER NETWORK change to netid[{thn}]')
                         clh.addNetwork(thn)
 
-            endTime = time.time()
+            endTime = time()
             print(f'It took {round(endTime-startTime,2)} seconds to load everything')
             
             print()
@@ -180,7 +177,8 @@ async def main():
             #rint(f'Clones WL[{clh_clones.watch_list}]')
             
             th.show() #show inscope networks/orgs
-            
+            if loop_count == 0:
+                ans = input("<ANY key to run or Ctrl-C to break>")
             
             #Cleanup for old mNET objects which have been removed from scope
             delList = []
@@ -216,9 +214,7 @@ async def main():
                 for ic in inscope_clones:
                     if not ic in mNets:
                         print(f'{bcolors.FAIL}New Network detected!!! NetID[{bcolors.WARNING}{ic}{bcolors.FAIL}]')
-                        mNets[ic] = await mNET(aiomeraki, ic, WRITE).loadCache()
-                        #if mNets[ic].no_cache: await mNets[ic].sync()
-
+                        mNets[ic] = await mNET(aiomeraki, ic, cfg, WRITE).loadCache()
                         await mNets[ic].cloneFrom(mNets[master_netid])
                     else:
                         await mNets[ic].sync()
@@ -235,7 +231,7 @@ async def main():
                     mcCount += 1
                     secondsGuess = avgTime * (len(th.nets)-1 - mcCount)
                     print(f'{bc.WARNING}Network #{mcCount} of [{len(th.nets)-1}] networks. AvgTime[{round(avgTime,1)}] seconds. Estimated [{round(secondsGuess/60,1)}] minutes left{bc.ENDC}')
-                    startT = time.time()
+                    startT = time()
 
                     #Niftly little workaround for finding "out of compliance" networks, if there's an exception or error, re-sync and try again
                     #tries = 1
@@ -251,7 +247,7 @@ async def main():
                         #tries -= 1
                     
 
-                    endT = time.time()
+                    endT = time()
                     dur = round(endT-startT,2)
                     if avgTime == 0:
                         avgTime = dur
@@ -266,7 +262,7 @@ async def main():
             loop_count+=1
             
             print()
-            endTime = time.time()
+            endTime = time()
             duration = round(endTime-startTime,2)
             if duration > longest_loop: longest_loop = duration
             #print()
@@ -289,7 +285,7 @@ async def main():
             print(bcolors.ENDC)
             print()
             
-            time.sleep(5)
+            sleep(5)
             #while count_sleep > 0:
             #    time.sleep(1)
     #       #     print(f'{bcolors.OKGREEN}z')

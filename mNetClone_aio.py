@@ -24,6 +24,7 @@ import sys, getopt, requests, json
 class mNET:
 
     configF = "autoSYNC.cfg" #this is the default
+    cfg = None #this hold the cfg array
     db = None #this holds the dashboard API object
     org_id = ""
     name = ""
@@ -45,6 +46,8 @@ class mNET:
     SYNC_MG = True
     SYNC_MX = True
 
+    #DEBUG
+    SYNC_TIMER = True #outputs each sections completed time
 
     ####CACHED RESULTS####
     #NETWORK
@@ -97,7 +100,7 @@ class mNET:
     no_cache = True #default
 
 
-    def __init__(self, db, net_id, write_flag):
+    def __init__(self, db, net_id, cfg, write_flag):
         self.db = db
         self.last_sync = datetime.utcnow()
         self.WRITE = write_flag
@@ -106,7 +109,21 @@ class mNET:
         self.f = self.cache_dir + self.net_id + ".mnet"
 
         self.no_cache = True
+        self.configLoad(cfg)
+
         #print("Created mNET")
+        return
+
+    def configLoad(self,cfg):
+        self.cfg = copy.deepcopy(cfg)
+        print(self.cfg)
+        self.SYNC_MR = self.cfg['SYNC_MR']
+        self.SYNC_MS = self.cfg['SYNC_MS']
+        self.SYNC_MX = self.cfg['SYNC_MX']
+        self.SYNC_MG = self.cfg['SYNC_MG']
+        if not self.configF == cfg['filename']:
+            print(f'Configuration file mismatch')
+            self.configF = cfg['filename']
         return
 
     async def start(self):
@@ -133,18 +150,14 @@ class mNET:
                 print(f'Has Cache! But it is stale, re-syncing')
                 self.clearCache()
         
-        if 'appliance' in self.productTypes:
-            self.SYNC_MX = True
-        else: self.SYNC_MX = False
-        if 'switch' in self.productTypes:
-            self.SYNC_MS = True
-        else: self.SYNC_MS = False
-        if 'wireless' in self.productTypes:
-            self.SYNC_MR = True
-        else: self.SYNC_MR = False
-        if 'cellularGateway' in self.productTypes:
-            self.SYNC_MG = True
-        else: self.SYNC_MG = False
+        if not 'appliance' in self.productTypes:
+            self.SYNC_MX = False
+        if not 'switch' in self.productTypes:
+            self.SYNC_MS = False
+        if not 'wireless' in self.productTypes:
+            self.SYNC_MR = False
+        if not 'cellularGateway' in self.productTypes:
+            self.SYNC_MG = False
 
         if self.no_cache:
             print('SYNCING FRESH')
@@ -191,11 +204,14 @@ class mNET:
 
     # master SYNC function
     async def sync(self):
-        startTime = time()
+        master_startTime = time()
         #print(f'NetID[{self.net_id}]')
         #print(f'Starting network SYNC!!!')
         self.last_sync = datetime.utcnow()
         loadTasks = []
+        startTime = time()
+        
+
         loadTasks.append(self.u_getNetwork())
         loadTasks.append(self.u_getNetworkAlertsSettings())
         loadTasks.append(self.u_getNetworkGroupPolicies())
@@ -214,7 +230,13 @@ class mNET:
         except:
             print(f'{bc.FAIL}ERROR: Syslog configuration error on network{bc.White}[{self.net_id}{bc.White}]{bc.ENDC}')
         #await self.u_getNetworkWebhooksHttpServers()
-        
+
+        endTime = time()
+        duration = round(endTime-startTime,2)
+        if self.SYNC_TIMER:
+            print(f'\tMain Settings completed in [{duration}] seconds')
+
+
         if self.SYNC_MR:
             """loadTasks = []
             await self.u_getSSIDS()
@@ -229,6 +251,8 @@ class mNET:
                 await task
                 #print('MR done...')"""
 
+            startTime = time()
+
             await self.u_getSSIDS()
             await self.u_getSSIDS_l3()
             await self.u_getSSIDS_l7()
@@ -238,6 +262,13 @@ class mNET:
             await self.u_getNetworkWirelessSettings()
             await self.u_getNetworkWirelessBluetoothSettings()
             await self.u_getNetworkWirelessRfProfiles()
+
+            endTime = time()
+            duration = round(endTime-startTime,2)
+            if self.SYNC_TIMER:
+                print(f'/t MR Settings completed in [{duration}] seconds')
+
+
 
         if self.SYNC_MS:
             """loadTasks = []
@@ -254,6 +285,7 @@ class mNET:
                 await task
                 #print('MS done...')"""
 
+            startTime = time()
             await self.u_getNetworkSwitchMtu()
             await self.u_getNetworkSwitchSettings()
             await self.u_getNetworkSwitchDscpToCosMappings()
@@ -262,6 +294,10 @@ class mNET:
             await self.u_getNetworkSwitchStormControl()
             await self.u_getNetworkSwitchQosRules()
             await self.u_getNetworkSwitchQosRulesOrder()
+            endTime = time()
+            duration = round(endTime-startTime,2)
+            if self.SYNC_TIMER:
+                print(f'/t MS Settings completed in [{duration}] seconds')
 
         if self.SYNC_MG:
             """loadTasks = []
@@ -273,16 +309,21 @@ class mNET:
                 await task
                 #print('MG done...')"""
 
+            startTime = time()
             await self.u_getNetworkCellularGatewayDhcp()
             await self.u_getNetworkCellularGatewaySubnetPool()
             await self.u_getNetworkCellularGatewayUplink()
             await self.u_getNetworkCellularGatewayConnectivityMonitoringDestinations()
             #self.u_getDeviceCellularGatewayPortForwardingRules() 
+            endTime = time()
+            duration = round(endTime-startTime,2)
+            if self.SYNC_TIMER:
+                print(f'/t MG Settings completed in [{duration}] seconds')
             
 
 
-        endTime = time()
-        self.last_sync_duration = round(endTime - startTime,2)
+        master_endTime = time()
+        self.last_sync_duration = round(master_endTime - master_startTime,2)
         print(f'{bc.White}Synced [{bc.WARNING}{self.name}{bc.White}] in {bc.WARNING}{self.last_sync_duration}{bc.White} seconds')
         print()
         self.CLEAN=True
@@ -493,19 +534,26 @@ class mNET:
             
         #had to add some logic to pop the "id" and "radsecEnabled". 'id' is unique and 'radsecEnabled' is beta for openroaming
         if 'radiusServers' in t_A:
-            t_A['radiusServers'][0].pop('id')
-            if 'radsecEnabled' in t_A['radiusServers'][0]: t_A['radiusServers'][0].pop('radsecEnabled')
+            for radServ in t_A['radiusServers']:
+                radServ.pop('id')
+                if 'radsecEnabled' in radServ: radServ.pop('radsecEnabled')
+            #t_A['radiusServers'][0].pop('id')
+            #if 'radsecEnabled' in t_A['radiusServers'][0]: t_A['radiusServers'][0].pop('radsecEnabled')
 
-            if 'radiusAccountingServers' in t_A: 
-                t_A['radiusAccountingServers'][0].pop('id')  
-                if 'radsecEnabled' in t_A['radiusAccountingServers'][0]: t_A['radiusAccountingServers'][0].pop('radsecEnabled')     
+        if 'radiusAccountingServers' in t_A: 
+            for radACC in t_A['radiusAccountingServers']:
+                radACC.pop('id')  
+                if 'radsecEnabled' in radACC: radACC.pop('radsecEnabled')     
+
         if 'radiusServers' in t_B:
-            t_B['radiusServers'][0].pop('id')
-            if 'radsecEnabled' in t_B['radiusServers'][0]: t_B['radiusServers'][0].pop('radsecEnabled')
+            for radServ in t_B['radiusServers']:
+                radServ.pop('id')
+                if 'radsecEnabled' in radServ: radServ.pop('radsecEnabled')
 
-            if 'radiusAccountingServers' in t_B: 
-                t_B['radiusAccountingServers'][0].pop('id')  
-                if 'radsecEnabled' in t_B['radiusAccountingServers'][0]: t_B['radiusAccountingServers'][0].pop('radsecEnabled') 
+        if 'radiusAccountingServers' in t_B:
+            for radACC in t_B['radiusAccountingServers']:
+                radACC.pop('id')  
+                if 'radsecEnabled' in radACC: radACC.pop('radsecEnabled') 
             
 
         return self.compare(t_A,t_B)
@@ -716,6 +764,7 @@ class mNET:
         return
 
     async def MS_cloneFrom(self, master):
+        if not self.SYNC_MS: return
         if not 'switch' in self.getNetwork['productTypes']:
             print(f'\t\t{bc.FAIL}Target network does not contain switching{bc.ENDC}')
             return
@@ -853,11 +902,12 @@ class mNET:
         return
     
     async def MX_cloneFrom(self, master):
-
+        if not self.SYNC_MX: return
 
         return
 
     async def MG_cloneFrom(self, master):
+        if not self.SYNC_MG: return
         print(f'{bc.LightMagenta}Starting Cellular Gateway configuration clone...{bc.ENDC}') 
         #MG
         #getNetworkCellularGatewayDhcp = None
@@ -926,7 +976,7 @@ class mNET:
     
     
     async def MR_cloneFrom(self, master):
-
+        if not self.SYNC_MR: return
         print(f'{bc.OKBLUE}Starting Wireless configuration clone...{bc.ENDC}') 
 
         #some optimizations
@@ -964,14 +1014,17 @@ class mNET:
                 secret = config['RAD_KEYS']['_ALL_'].replace('"','').replace(' ','')
                 if temp_SSID['name'] in config['RAD_KEYS']:
                     secret = config['RAD_KEYS'][temp_SSID['name']].replace('"','').replace(' ','')
-                if "meraki123!" in secret:
-                        print(f'\t\t{bc.FAIL}Using DEFAULT!!! Radius Secret [{bc.WARNING}{secret}{bc.FAIL}]')
-                        #sys.exit(1)   
 
                 if 'radiusServers' in temp_SSID:
                     #print(f'{bc.OKGREEN}Using Secret [{bc.WARNING}{secret}{bc.OKGREEN}]')
                     for rs in temp_SSID['radiusServers']:
                         rs['secret'] = secret
+
+                    if "meraki123!" in secret:
+                        print(f'\t\t{bc.FAIL}Using DEFAULT!!! Radius Secret [{bc.WARNING}{secret}{bc.FAIL}]')
+                        print(f'\t\t{bc.FAIL}<BY-PASSING!!!NO CHANGES WILL BE MADE>')
+                        sleep(10)
+                        continue
 
                 if 'radiusAccountingServers' in temp_SSID:
                     for ras in temp_SSID['radiusAccountingServers']:
