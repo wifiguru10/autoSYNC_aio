@@ -12,6 +12,7 @@ import configparser
 import os
 import sys
 import pickle
+import random
 from time import *
 from datetime import datetime,timedelta
 from bcolors import bcolors as bc
@@ -35,6 +36,7 @@ class mNET:
     net_id = ""
     last_sync = None
     last_sync_duration = -1
+    clonedCount = 0
     sync_interval = timedelta(minutes=1)
 
     WRITE = True 
@@ -116,7 +118,7 @@ class mNET:
 
     def configLoad(self,cfg):
         self.cfg = copy.deepcopy(cfg)
-        print(self.cfg)
+        #print(self.cfg)
         self.SYNC_MR = self.cfg['SYNC_MR']
         self.SYNC_MS = self.cfg['SYNC_MS']
         self.SYNC_MX = self.cfg['SYNC_MX']
@@ -207,20 +209,20 @@ class mNET:
         master_startTime = time()
         #print(f'NetID[{self.net_id}]')
         #print(f'Starting network SYNC!!!')
+        napnap = random.randint(0, 2)
+        await asyncio.sleep(napnap)
         self.last_sync = datetime.utcnow()
-        loadTasks = []
+        
         startTime = time()
         
-
+        loadTasks = []
         loadTasks.append(self.u_getNetwork())
         loadTasks.append(self.u_getNetworkAlertsSettings())
         loadTasks.append(self.u_getNetworkGroupPolicies())
         loadTasks.append(self.u_getNetworkSnmp())
         loadTasks.append(self.u_getNetworkTrafficAnalysis())
         loadTasks.append(self.u_getNetworkWebhooksHttpServers())
-        for task in asyncio.as_completed(loadTasks):
-            await task
-            #print('done...')
+       
 
         #await self.u_getNetworkAlertsSettings()
         #await self.u_getNetworkGroupPolicies()
@@ -230,6 +232,11 @@ class mNET:
         except:
             print(f'{bc.FAIL}ERROR: Syslog configuration error on network{bc.White}[{self.net_id}{bc.White}]{bc.ENDC}')
         #await self.u_getNetworkWebhooksHttpServers()
+
+        for task in asyncio.as_completed(loadTasks):
+           await task
+         #   #print('done...')
+        loadTasks = [] #reset this
 
         endTime = time()
         duration = round(endTime-startTime,2)
@@ -252,21 +259,24 @@ class mNET:
                 #print('MR done...')"""
 
             startTime = time()
-
+            #loadTasks = []
             await self.u_getSSIDS()
-            await self.u_getSSIDS_l3()
-            await self.u_getSSIDS_l7()
-            await self.u_getSSIDS_ts()
-            await self.u_getSSIDS_ipsk()
+            loadTasks.append(self.u_getSSIDS_l3())
+            loadTasks.append(self.u_getSSIDS_l7())
+            loadTasks.append(self.u_getSSIDS_ts())
+            loadTasks.append(self.u_getSSIDS_ipsk())
             self.u_getSSIDS_aie()
-            await self.u_getNetworkWirelessSettings()
-            await self.u_getNetworkWirelessBluetoothSettings()
-            await self.u_getNetworkWirelessRfProfiles()
-
+            loadTasks.append(self.u_getNetworkWirelessSettings())
+            loadTasks.append(self.u_getNetworkWirelessBluetoothSettings())
+            loadTasks.append(self.u_getNetworkWirelessRfProfiles())
+            
+            #for task in asyncio.as_completed(loadTasks):
+            #    await task
+            
             endTime = time()
             duration = round(endTime-startTime,2)
-            if self.SYNC_TIMER:
-                print(f'/t MR Settings completed in [{duration}] seconds')
+            #if self.SYNC_TIMER:
+               # print(f'\tMR Settings completed in [{duration}] seconds')
 
 
 
@@ -286,18 +296,23 @@ class mNET:
                 #print('MS done...')"""
 
             startTime = time()
-            await self.u_getNetworkSwitchMtu()
-            await self.u_getNetworkSwitchSettings()
-            await self.u_getNetworkSwitchDscpToCosMappings()
-            await self.u_getNetworkSwitchRoutingMulticast()
-            await self.u_getNetworkSwitchAccessControlLists()
-            await self.u_getNetworkSwitchStormControl()
-            await self.u_getNetworkSwitchQosRules()
-            await self.u_getNetworkSwitchQosRulesOrder()
+            #loadTasks = []
+            loadTasks.append(self.u_getNetworkSwitchMtu())
+            loadTasks.append(self.u_getNetworkSwitchSettings())
+            loadTasks.append( self.u_getNetworkSwitchDscpToCosMappings())
+            loadTasks.append( self.u_getNetworkSwitchRoutingMulticast())
+            loadTasks.append( self.u_getNetworkSwitchAccessControlLists())
+            loadTasks.append( self.u_getNetworkSwitchStormControl())
+            loadTasks.append( self.u_getNetworkSwitchQosRules())
+            loadTasks.append( self.u_getNetworkSwitchQosRulesOrder())
+
+            #for task in asyncio.as_completed(loadTasks):
+            #    await task
+
             endTime = time()
             duration = round(endTime-startTime,2)
-            if self.SYNC_TIMER:
-                print(f'/t MS Settings completed in [{duration}] seconds')
+            #if self.SYNC_TIMER:
+            #   print(f'\t MS Settings completed in [{duration}] seconds')
 
         if self.SYNC_MG:
             """loadTasks = []
@@ -310,21 +325,31 @@ class mNET:
                 #print('MG done...')"""
 
             startTime = time()
-            await self.u_getNetworkCellularGatewayDhcp()
-            await self.u_getNetworkCellularGatewaySubnetPool()
-            await self.u_getNetworkCellularGatewayUplink()
-            await self.u_getNetworkCellularGatewayConnectivityMonitoringDestinations()
+            #loadTasks = []
+            loadTasks.append(self.u_getNetworkCellularGatewayDhcp())
+            loadTasks.append( self.u_getNetworkCellularGatewaySubnetPool())
+            loadTasks.append( self.u_getNetworkCellularGatewayUplink())
+            loadTasks.append( self.u_getNetworkCellularGatewayConnectivityMonitoringDestinations())
             #self.u_getDeviceCellularGatewayPortForwardingRules() 
+
+            #for task in asyncio.as_completed(loadTasks):
+            #    await task
+
             endTime = time()
             duration = round(endTime-startTime,2)
-            if self.SYNC_TIMER:
-                print(f'/t MG Settings completed in [{duration}] seconds')
+            #if self.SYNC_TIMER:
+            #    print(f'\t MG Settings completed in [{duration}] seconds')
             
 
+        for task in asyncio.as_completed(loadTasks):
+            await task
+            #await asyncio.sleep(0.1)
+            #print('.')
 
         master_endTime = time()
         self.last_sync_duration = round(master_endTime - master_startTime,2)
-        print(f'{bc.White}Synced [{bc.WARNING}{self.name}{bc.White}] in {bc.WARNING}{self.last_sync_duration}{bc.White} seconds')
+        if self.SYNC_TIMER:
+            print(f'{bc.White}Synced [{bc.WARNING}{self.name}{bc.White}] in {bc.WARNING}{self.last_sync_duration}{bc.White} seconds')
         print()
         self.CLEAN=True
         self.storeCache()
@@ -377,6 +402,7 @@ class mNET:
         self.ssids = []
         
         for ssid_num in range(0,15):
+            await asyncio.sleep(0.1)
             ssid_tmp = await self.db.wireless.getNetworkWirelessSsid(self.net_id, ssid_num)
             self.ssids.append(ssid_tmp)
             if not "Unconfigured SSID" in ssid_tmp['name'] and not ssid_num in self.ssids_range:
@@ -530,6 +556,8 @@ class mNET:
         if 'dnsRewrite' in t_B: t_B.pop('dnsRewrite')
         if 'adultContentFilteringEnabled' in t_A: t_A.pop('adultContentFilteringEnabled')
         if 'adultContentFilteringEnabled' in t_B: t_B.pop('adultContentFilteringEnabled')
+        if 'roles' in t_A: t_A.pop('roles')
+        if 'roles' in t_B: t_B.pop('roles')
 
             
         #had to add some logic to pop the "id" and "radsecEnabled". 'id' is unique and 'radsecEnabled' is beta for openroaming
@@ -600,11 +628,14 @@ class mNET:
             exit()
        
         print(f'{bc.White}Cloning network[{bc.WARNING}{self.name}{bc.White}][{bc.WARNING}{self.net_id}{bc.White}] from master[{bc.WARNING}{master.name}{bc.White}][{bc.WARNING}{master.net_id}{bc.White}] {bc.ENDC}')
-        await self.NET_cloneFrom(master) 
-        if self.SYNC_MR: await self.MR_cloneFrom(master)
-        if self.SYNC_MS: await self.MS_cloneFrom(master)
-        if self.SYNC_MX: await self.MX_cloneFrom(master)
-        if self.SYNC_MG: await self.MG_cloneFrom(master)
+        CloneTasks = []
+        CloneTasks.append(self.NET_cloneFrom(master))
+        if self.SYNC_MR: CloneTasks.append(self.MR_cloneFrom(master))
+        if self.SYNC_MS: CloneTasks.append(self.MS_cloneFrom(master))
+        if self.SYNC_MX: CloneTasks.append(self.MX_cloneFrom(master))
+        if self.SYNC_MG: CloneTasks.append(self.MG_cloneFrom(master))
+        for task in asyncio.as_completed(CloneTasks):
+            thn = await task
 
         self.storeCache() #make sure to save cached copy for whatever changes were made
         print()
@@ -626,7 +657,7 @@ class mNET:
         ### /end-Traffic Analytics Settings
 
         ## Clone Syslog Settings
-        if not self.compare(master.getNetworkSyslogServers['servers'], self.getNetworkSyslogServers['servers']): 
+        if not self.soft_compare(master.getNetworkSyslogServers['servers'], self.getNetworkSyslogServers['servers']): 
 
             #kinda works.... will trigger "change" if the 'roles' are unordered
             if self.WRITE: 
@@ -987,6 +1018,7 @@ class mNET:
         #SSIDS
         
         #Process all SSIDs
+        ssidTasks = []
         for i in range(0,15):
             if 'Unconfigured SSID' in self.ssids[i]['name'] and 'Unconfigured SSID' in master.ssids[i]['name']: #Don't process SSIDs that are unconfigured
                 #print("bypass!!!") 
@@ -1162,8 +1194,12 @@ class mNET:
                     newRF.pop('id')
                     newRF.pop('networkId')
                     newRF = self.MR_rfp_pwr(newRF)
-                    if self.WRITE: 
-                        await self.db.wireless.createNetworkWirelessRfProfile(self.net_id,**newRF)
+                    if self.WRITE:
+                        try: 
+                            await self.db.wireless.createNetworkWirelessRfProfile(self.net_id,**newRF)
+                        except:
+                            print(f'\t {bc.FAIL}ERROR: Can\'t create duplicate RF Profile')
+                            print(newRF)
                         self.CLEAN = False
             #wouldn't be here without something being different, so at least resync this part
         if not self.CLEAN:

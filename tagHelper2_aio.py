@@ -63,10 +63,10 @@ class tagHelper:
 
     #returns True if there is a network change count
     def hasChange(self):
-        if self.sync_change != 0:
-            return True
-        else:
+        if self.sync_change == 0:
             return False
+        else:
+            return True
 
     #kicks off all the discovery
     async def sync(self):

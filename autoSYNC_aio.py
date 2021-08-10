@@ -28,6 +28,7 @@ tag_target = ''
 tag_golden = ''
 TAGS = []
 cfg = {}
+newNets = []
 
 def loadCFG(db,filename):
 
@@ -65,6 +66,11 @@ def loadCFG(db,filename):
         if 'true' in config['autoSYNC'][f].lower():
             cfg[f] = True
         else: cfg[f] = False
+
+    if 'true' in config['autoSYNC']['PAUSE_ON_FIRST_LOOP'].lower():
+        cfg['PAUSE_OFL'] = True
+    else:
+        cfg['PAUSE_OFL'] = False
 
 
     cfg['tag_target'] = config['TAG']['TARGET']
@@ -129,9 +135,11 @@ async def main():
         mNets = {} #Dictionary of {'net_id': <mnet_obj>}
         master_netid = None
         mr_obj = [] #collect the networks
-        last_changes = []
+        #last_changes = []
         longest_loop = 0
         loop_count = 0
+        oldNets = []
+        newNets = [] #configured here because we'll remove the networkID as it gets loaded (so it can span multiple loops)
         while loop:
             print()
             print(f'\t{bcolors.HEADER}****************************{bcolors.FAIL}START LOOP{bcolors.HEADER}*****************************')
@@ -143,10 +151,15 @@ async def main():
             else:
                 print(f'{bcolors.OKGREEN}WRITE MODE[{bcolors.WARNING}DISABLED{bcolors.OKGREEN}]{bcolors.ENDC}')
 
-
+           
             # TagHelper sync networks
+            oldNets = copy.deepcopy(th.nets)  #keep copy of old networks
             await th.sync() #taghelper, look for any new networks inscope
-            
+            for nn in th.nets:
+                if not nn in oldNets:
+                    newNets.append(nn)
+
+            print(f'New Networks {newNets}')
 
             print()
             #Master Loader section
@@ -177,8 +190,9 @@ async def main():
             #rint(f'Clones WL[{clh_clones.watch_list}]')
             
             th.show() #show inscope networks/orgs
-            if loop_count == 0:
-                ans = input("<ANY key to run or Ctrl-C to break>")
+            if loop_count == 0 and cfg['PAUSE_OFL']:
+                print()
+                ans = input("FIRST LOOP PAUSE!!!  Press  <ENTER to continue or Ctrl-C to break>")
             
             #Cleanup for old mNET objects which have been removed from scope
             delList = []
@@ -208,17 +222,41 @@ async def main():
 
             print()
             
+            if len(newNets) > 0:
+                clone_change = True
             if clone_change: #if there's a change to clones, run a short loop syncing just those networks
                 print(f'{bcolors.FAIL}Change in a target Network Detected:{bcolors.Blink} Initializing Sync{bcolors.ENDC}')
                 inscope_clones = clh_clones.changed_nets #gets list of networks changed
+                newNetTasks = []
+                doneNets = []
+                for nn in newNets:
+                    print(f'Cloning new network....')
+                    #mNets[nn] = await mNET(aiomeraki, nn, cfg, WRITE).loadCache()
+                    newNetTasks.append(mNets[nn].cloneFrom(mNets[master_netid]))
+                    doneNets.append(nn)
+                for task in asyncio.as_completed(newNetTasks):
+                    await task
+
+                for dn in doneNets: #clear out cloned networks in "newNets" so if next loop you won't reclone
+                    print(f'Done processing {dn} network')
+                    newNets.remove(dn)
+
+                cloneTasks = []
                 for ic in inscope_clones:
                     if not ic in mNets:
                         print(f'{bcolors.FAIL}New Network detected!!! NetID[{bcolors.WARNING}{ic}{bcolors.FAIL}]')
+                        print(f'THIS NEVER SHULD HAPPEN AT THIS POINT')
+                        sys.exit(1)
                         mNets[ic] = await mNET(aiomeraki, ic, cfg, WRITE).loadCache()
                         await mNets[ic].cloneFrom(mNets[master_netid])
                     else:
+                        
                         await mNets[ic].sync()
-                        await mNets[ic].cloneFrom(mNets[master_netid])
+                        cloneTasks.append(mNets[ic].cloneFrom(mNets[master_netid]))
+                    
+                    for task in asyncio.as_completed(cloneTasks):
+                        await task
+
             
 
             elif master_change or loop_count == 0:
@@ -226,6 +264,7 @@ async def main():
                 mcCount = 0
                 await mNets[master_netid].sync()
                 avgTime = 0
+                cloneTask = []
                 for net in mNets:
                     if net == master_netid: continue
                     mcCount += 1
@@ -237,7 +276,8 @@ async def main():
                     #tries = 1
                     #while tries > 0:
                         #try:
-                    await mNets[net].cloneFrom(mNets[master_netid])
+                    cloneTask.append(mNets[net].cloneFrom(mNets[master_netid]))
+                    #asyncio.sleep(0.5)
                         #    tries = 0
                         #except:
                         #    #potentially something changed... 
@@ -253,7 +293,9 @@ async def main():
                         avgTime = dur
                     else:
                         avgTime = ( avgTime + dur )/ 2
-                
+        
+                for task in asyncio.as_completed(cloneTask):
+                    await task #wait for all the cloned networks to finish processing
             else:
                 print(f'{bc.OKBLUE}No changes detected in target networks{bc.ENDC}')
 
@@ -303,5 +345,9 @@ async def main():
 
 
 if __name__ == '__main__':
+    startScript = time()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main()) 
+    endScript = time()
+    duration = round(endScript - startScript,2)
+    print(f'Script completed in [{duration}] Seconds')
