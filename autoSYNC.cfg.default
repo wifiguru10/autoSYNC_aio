@@ -3,39 +3,60 @@
 [autoSYNC]
 
 #Set this to TRUE to run as a daemon, otherwise it'll run once
-LOOP = False
+LOOP = True
+
+PAUSE_ON_FIRST_LOOP = True
 
 #Set this to FALSE for READ-ONLY, TRUE for "R/W"
-WRITE = False
+WRITE = False 
 
-#Set this to true, to crawl all networks. WARNING. Don't set WRITE & ALL_ORGS unless you know what you're doing and dislike your job
+#Set this to true, to crawl all networks. WARNING. Don't set WRITE & ALL_ORGS unless you know what your doing and dislike your job
 ALL_ORGS = True 
 
-#Include switch settings?
-SWITCH = True
+#Include/Exclude sync settings? Excluding products will also speed up sync.
+SYNC_MR = True
+SYNC_MS = True
+SYNC_MG = True
+SYNC_MX = True
+
+
+#do you want to force the golden to be a template? 
+FORCE_GOLDEN_TEMPLATE_SRC = FALSE 
+
+#How many network do you want to load per loop?
+LOOP_LIMIT = 5
+
 
 # Only monitor these orgs, to keep the "crawl" down
-Orgs = 111111111111, 22222222222222, 33333333333
+Orgs = 12345, 66696, 577586697
 
 [TAG]
 #TARGET should be on ALL networks that are inscope, the master and all the target networks
-TARGET = autoSYNC
-#MASTER should ONLY be on the 'golden network'
-MASTER = golden
+TARGET = autoSYNC_COMMON
+#GOLDEN should ONLY be on the 'golden network'
+GOLDEN = golden
 
+#[TAGS] #FUTURE
+#TARGETS, with prefix above, array [ "<masterTAG>" : "<childTAG>" , .. ]
+#TARGETS = "golden":"autoSYNC", "goldenV1":"storeV1" , "goldenV2":"storeV2" 
+
+#these are recommended switch settings / flood options. defaults are all 100
 [SWITCH_SETTINGS]
-broadcastThreshold = 100
-multicastThreshold = 100
-unknownUnicastThreshold = 100
+broadcastThreshold = 20
+multicastThreshold = 50
+unknownUnicastThreshold = 10
+#broadcastThreshold = 100
+#multicastThreshold = 100
+#unknownUnicastThreshold = 100
 
 
-[ChangeLog]
+#[ChangeLog]
 #Leaving this as empty will allow "all changes" to be detected in target networks and will be reverted. adding emails will only revert changes by those users. Once a change is detected, ALL changes will be reverted, not just for that user.
-emails= merakiRocks@foo.bar ,something@foo.bar
+#emails= ndarrow@cisco.com, nico.darrow@gmail.com
 
 #Needed for EAP networks using 'My Radius' external radius servers, secrets aren't visible in API to transfer
 [RAD_KEYS]
 #SSID = "<SECRET>"
 OpenRoaming = "openRoamingSecret"
-_ALL_ = "meraki123!"
+_ALL_ = "meraki123"
 
