@@ -73,7 +73,7 @@ class mNET:
     getNetworkWirelessSettings = None
     getNetworkWirelessBluetoothSettings = None
     getNetworkWirelessRfProfiles = None
-    hasAironetIE = None #Leave this as true, first check will disable if it returns 404
+    hasAironetIE = False #Leave this as true, first check will disable if it returns 404
     aironetie = []
 
     #SWITCH
@@ -402,7 +402,7 @@ class mNET:
         self.ssids = []
         
         for ssid_num in range(0,15):
-            await asyncio.sleep(0.1)
+            #await asyncio.sleep(0.1)
             ssid_tmp = await self.db.wireless.getNetworkWirelessSsid(self.net_id, ssid_num)
             self.ssids.append(ssid_tmp)
             if not "Unconfigured SSID" in ssid_tmp['name'] and not ssid_num in self.ssids_range:
@@ -796,6 +796,7 @@ class mNET:
 
     async def MS_cloneFrom(self, master):
         if not self.SYNC_MS: return
+        if not "switch" in master.productTypes: return
         if not 'switch' in self.getNetwork['productTypes']:
             print(f'\t\t{bc.FAIL}Target network does not contain switching{bc.ENDC}')
             return
@@ -934,11 +935,14 @@ class mNET:
     
     async def MX_cloneFrom(self, master):
         if not self.SYNC_MX: return
+        
 
         return
 
     async def MG_cloneFrom(self, master):
         if not self.SYNC_MG: return
+        if not "cellularGateway" in master.productTypes: return
+        if not "cellularGateway" in self.productTypes: return
         print(f'{bc.LightMagenta}Starting Cellular Gateway configuration clone...{bc.ENDC}') 
         #MG
         #getNetworkCellularGatewayDhcp = None
@@ -1008,6 +1012,8 @@ class mNET:
     
     async def MR_cloneFrom(self, master):
         if not self.SYNC_MR: return
+        if not "wireless" in master.productTypes: return
+        if not "wireless" in self.productTypes: return
         print(f'{bc.OKBLUE}Starting Wireless configuration clone...{bc.ENDC}') 
 
         #some optimizations
@@ -1051,9 +1057,14 @@ class mNET:
                     #print(f'{bc.OKGREEN}Using Secret [{bc.WARNING}{secret}{bc.OKGREEN}]')
                     for rs in temp_SSID['radiusServers']:
                         rs['secret'] = secret
+                        if "caCertificate" in rs:
+                            rs.pop("caCertificate")
+                        if "openRoamingCertificateId" in rs:
+                            rs.pop("openRoamingCertificateId")
+
 
                     if "meraki123!" in secret:
-                        print(f'\t\t{bc.FAIL}Using DEFAULT!!! Radius Secret [{bc.WARNING}{secret}{bc.FAIL}]')
+                        print(f'\t\t{bc.FAIL}Using DEFAULT!!! Radius Secrets [{bc.WARNING}{secret}{bc.FAIL}]')
                         print(f'\t\t{bc.FAIL}<BY-PASSING!!!NO CHANGES WILL BE MADE>')
                         sleep(10)
                         continue
@@ -1061,6 +1072,10 @@ class mNET:
                 if 'radiusAccountingServers' in temp_SSID:
                     for ras in temp_SSID['radiusAccountingServers']:
                         ras['secret'] = secret
+                        if "caCertificate" in ras:
+                            ras.pop("caCertificate")
+                        if "openRoamingCertificateId" in ras:
+                            ras.pop("openRoamingCertificateId")
          
                 
                 

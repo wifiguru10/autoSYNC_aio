@@ -48,7 +48,7 @@ async def main():
                 orgs_whitelist.append(o['id'])
             print(orgs_whitelist)
 
-            orgs_whitelist = ['121177', '577586652210266696', '577586652210266697']
+            orgs_whitelist = ['121177', '577586652210266696', '577586652210266697'] #, '749286388003766274']
 
 
             #th = tagHelper2.tagHelper(db, tag_target, tag_golden, orgs_whitelist)
@@ -67,7 +67,7 @@ async def main():
             th.show()
 
             golden_netid = th.golden_net['id']
-            golden_net = mNET(aiomeraki, golden_netid, True).loadCache()
+            golden_net = await mNET(aiomeraki, golden_netid, True).loadCache()
 
             last_net = None
 
