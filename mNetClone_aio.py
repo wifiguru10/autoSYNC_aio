@@ -10,6 +10,7 @@ import asyncio
 import copy
 import configparser
 import os
+from re import T
 import sys
 import pickle
 import random
@@ -543,75 +544,117 @@ class mNET:
 
     #same as compare() but strips out ID/networkID for profiles/group policies etc
     def soft_compare(self, A, B):
+
         t_A = copy.deepcopy(A)
         t_B = copy.deepcopy(B)
-        if 'id' in t_A: t_A.pop('id')
-        if 'networkId' in t_A: t_A.pop('networkId')
-        if 'groupPolicyId' in t_A: t_A.pop('groupPolicyId')
-        if 'id' in t_B: t_B.pop('id')
-        if 'networkId' in t_B: t_B.pop('networkId')
-        if 'groupPolicyId' in t_B: t_B.pop('groupPolicyId')
+        delete_keys1 = ['id', 'networkId', 'groupPolicyId', 'dnsRewrite', 'adultContentFilteringEnabled', 'roles', 'radiusServerTimeout', 'radiusServerAttemptsLimit', 'radiusFallbackEnabled', 'radiusAccountingInterimInterval' ]
+        for dk in delete_keys1:
+            if dk in t_A: t_A.pop(dk)
+            if dk in t_B: t_B.pop(dk)
 
-        if 'dnsRewrite' in t_A: t_A.pop('dnsRewrite')
-        if 'dnsRewrite' in t_B: t_B.pop('dnsRewrite')
-        if 'adultContentFilteringEnabled' in t_A: t_A.pop('adultContentFilteringEnabled')
-        if 'adultContentFilteringEnabled' in t_B: t_B.pop('adultContentFilteringEnabled')
-        if 'roles' in t_A: t_A.pop('roles')
-        if 'roles' in t_B: t_B.pop('roles')
+        #This bit of code should "true up" both objects by removing uncomming keys, similar to the static removal of keys above, but dynamic
+        '''
+        toRemove = []
+        if len(t_A) > len(t_B) and len(t_B) > 0:
+            for k in t_A:
+                if not k in t_B:
+                    toRemove.append(k)
+            for tr in toRemove:
+                if not type(tr) == dict: t_A.pop(tr)
+        elif len(t_B) > len(t_A) and len(t_A) > 0:
+            for k in t_B:
+                if not k in t_A:
+                    toRemove.append(k)
+            for tr in toRemove:
+                if not type(tr) == dict: t_B.pop(tr)
 
-            
+        if not len(t_A) == len(t_B):
+            print("Both objects aren't equal.... somethings wrong...")
+        '''
+
+        delete_keys2 = [ 'id', 'radsecEnabled' , 'openRoamingCertificateId', 'caCertificate']
         #had to add some logic to pop the "id" and "radsecEnabled". 'id' is unique and 'radsecEnabled' is beta for openroaming
         if 'radiusServers' in t_A:
             for radServ in t_A['radiusServers']:
-                radServ.pop('id')
-                if 'radsecEnabled' in radServ: radServ.pop('radsecEnabled')
+                for dk in delete_keys2:
+                    if dk in radServ: radServ.pop(dk)
+                #radServ.pop('id')
+                #if 'radsecEnabled' in radServ: radServ.pop('radsecEnabled')
             #t_A['radiusServers'][0].pop('id')
             #if 'radsecEnabled' in t_A['radiusServers'][0]: t_A['radiusServers'][0].pop('radsecEnabled')
 
         if 'radiusAccountingServers' in t_A: 
             for radACC in t_A['radiusAccountingServers']:
-                radACC.pop('id')  
-                if 'radsecEnabled' in radACC: radACC.pop('radsecEnabled')     
+                for dk in delete_keys2:
+                    if dk in radACC: radACC.pop(dk)   
 
         if 'radiusServers' in t_B:
             for radServ in t_B['radiusServers']:
-                radServ.pop('id')
-                if 'radsecEnabled' in radServ: radServ.pop('radsecEnabled')
+                for dk in delete_keys2:
+                    if dk in radServ: radServ.pop(dk)
 
         if 'radiusAccountingServers' in t_B:
             for radACC in t_B['radiusAccountingServers']:
-                radACC.pop('id')  
-                if 'radsecEnabled' in radACC: radACC.pop('radsecEnabled') 
+                for dk in delete_keys2:
+                    if dk in radACC: radACC.pop(dk) 
             
-
-        return self.compare(t_A,t_B)
+        result = self.compare(t_A, t_B)
+        if not result:
+            a = 0 #really just a placeholder for breakpoint
+        return result
 
     #compares JSON objects, directionarys and unordered lists will be equal 
     def compare(self, A, B):
         result = True
         if A == None and B == None: 
             return True
+
+        if A == B:
+            return True
+
         if not type(A) == type(B): 
             #print(f"Wrong type")
             return False
-        try:
-            if not type(A) == int and not type(A) == float and not type(A) == bool and not len(A) == len(B): 
-                #print(f'Not the same length')
-                return False
-        except:
-            print()
+
+        #try:
+        
+        if not type(A) == int and not type(A) == str and not type(A) == float and not type(A) == bool and not type(A) == dict and not type(A) == list: 
+            print(f'Wierd Compare type of [{type(A)}] Contents[{A}]')
+            return False
+        
+        #except:
+        #    print()
         
         if type(A) == dict:
             for a in A:
+                #if a in B and not self.compare(A[a],B[a]):
+                #    return False
+                result = self.compare(A[a],B[a])
                 if a in B and not self.compare(A[a],B[a]):
                     return False
         elif type(A) == list:
+            found = 0
             for a in A:
-                if not a in B:
+                if type(a) == dict:
+                    for b in B:
+                        if self.compare(a,b):
+                            found += 1
+                #elif A == B:
+                    #return True
+                elif not a in B:
                     return False
+            #if found == len(A) and len(A) > 0:
+                #print("YEAH")
+            if A == B:
+                return True
+            elif not found == len(A):
+                return False             
+            
         else:
             if not A == B:
                 return False
+        #if 'name' in A and 'number' in A:
+        #    print()  
         return result
     ##END-OF COMPARE
 
@@ -640,6 +683,16 @@ class mNET:
         self.storeCache() #make sure to save cached copy for whatever changes were made
         print()
         return
+
+    #this fixes the bug where you can't write a GP with a L3 ruleset without including the 'srcCidr' field
+    def fixGPL3(self, target):
+        if len(target['firewallAndTrafficShaping']['l3FirewallRules']) > 0:
+            for l3 in target['firewallAndTrafficShaping']['l3FirewallRules']:
+                if not 'srcCidr' in l3:
+                    l3['srcCidr'] = 'Any'
+                if not 'srcPort' in l3:
+                    l3['srcPort'] = 'Any'
+        return target
 
     #This function covers cloning master network settings, alerts, group policies
     async def NET_cloneFrom(self, master):
@@ -762,6 +815,10 @@ class mNET:
                     print(f'\t\t{bc.OKBLUE}Creating GP Policy named {tempGP["name"]}{bc.ENDC}')
                     self.CLEAN = False
                     try:
+                        self.CLEAN = False
+                        self.fixGPL3(tempGP)
+                        print(f"Trying to write to {self.net_id}")
+                        print(tempGP)
                         await self.db.networks.createNetworkGroupPolicy(self.net_id,**tempGP)
                     except:
                         foo = sys.exc_info()[1].message['errors']
@@ -770,6 +827,7 @@ class mNET:
                                 tempGP.pop('contentFiltering')
                                 try:
                                     await self.db.networks.createNetworkGroupPolicy(self.net_id,**tempGP)
+                                    self.CLEAN = False
                                 except:
                                     print(f'\t{bc.FAIL}ERROR: Cannot create GP policy named {tempGP["name"]}')
                                     print(sys.exc_info())
@@ -1009,7 +1067,42 @@ class mNET:
         #print(f'{bc.OKGREEN}Cellular Gateway clone...DONE{bc.ENDC}') 
         return
     
+    def removeKey(self, target, key_name):
+        if type(target) == dict:
+            if key_name in target:
+                target.pop(key_name)
+            elif 'rules' in target:
+                rules = target['rules']
+                if type(rules) == list:
+                    for r in rules:
+                        if key_name in r:
+                            r.pop(key_name)
     
+    #function to take existing radius server/accounting IDs and overlay them on the target(to be written) SSID. Keeps from throwing an error
+    def fixSSID(self, source, target):
+        radServs = {}
+        if 'radiusServers' in source:
+            for rs in source['radiusServers']:
+                if not rs['host'] in radServs:
+                    radServs[rs['host']] = rs['id']
+        radAccount = {}
+        if 'radiusAccountingServers' in source:
+            for ras in source['radiusAccountingServers']:
+                if not ras['host'] in radAccount:
+                    radAccount[ras['host']] = ras['id']
+        
+        if 'radiusServers' in target:
+            for rs in target['radiusServers']:
+                if rs['host'] in radServs:
+                    rs['id'] = radServs[rs['host']]
+        if 'radiusAccountingServers' in target:
+            for ras in target['radiusAccountingServers']:
+                if ras['host'] in radAccount:
+                    ras['id'] = radAccount[rs['host']]
+        
+        return target
+
+
     async def MR_cloneFrom(self, master):
         if not self.SYNC_MR: return
         if not "wireless" in master.productTypes: return
@@ -1032,6 +1125,11 @@ class mNET:
             if not self.soft_compare(master.ssids[i], self.ssids[i]):
                 temp_SSID = copy.deepcopy(master.ssids[i]) #Make a copy of the master SSID.... overrides will be needed to write
                 print(f'\t-{bc.OKBLUE} SSID_Num[{bc.WARNING}{i}{bc.OKBLUE}] configuring SSID[{bc.WARNING}{master.ssids[i]["name"]}{bc.OKBLUE}] ')
+                #print("Self:")
+                #print(self.ssids[i])
+                #print("Master:")
+                #print(master.ssids[i])
+                #print()
 
                 ###  START OF THE OVERRIDES/EXCEPTIONS
                 if 'encryptionMode' in temp_SSID and temp_SSID['encryptionMode'] == 'wpa-eap':
@@ -1053,14 +1151,14 @@ class mNET:
                 if temp_SSID['name'] in config['RAD_KEYS']:
                     secret = config['RAD_KEYS'][temp_SSID['name']].replace('"','').replace(' ','')
 
+                delete_keys = [ 'openRoamingCertificateId', 'caCertificate']
                 if 'radiusServers' in temp_SSID:
                     #print(f'{bc.OKGREEN}Using Secret [{bc.WARNING}{secret}{bc.OKGREEN}]')
                     for rs in temp_SSID['radiusServers']:
                         rs['secret'] = secret
-                        if "caCertificate" in rs:
-                            rs.pop("caCertificate")
-                        if "openRoamingCertificateId" in rs:
-                            rs.pop("openRoamingCertificateId")
+                        for dk in delete_keys:
+                            if dk in rs: rs.pop(dk)
+            
 
 
                     if "meraki123!" in secret:
@@ -1072,33 +1170,44 @@ class mNET:
                 if 'radiusAccountingServers' in temp_SSID:
                     for ras in temp_SSID['radiusAccountingServers']:
                         ras['secret'] = secret
-                        if "caCertificate" in ras:
-                            ras.pop("caCertificate")
-                        if "openRoamingCertificateId" in ras:
-                            ras.pop("openRoamingCertificateId")
-         
+                        for dk in delete_keys:
+                            if dk in ras: ras.pop(dk)
                 
                 
                 ### END OF THE OVERRIDES/EXCEPTIONS
 
 
                 try:
-                    #print(f'Writing {temp_SSID}')
+                    print(f'Writing {temp_SSID}')
                     #print()
-                    if self.WRITE: 
+                    if self.WRITE:
+                        self.fixSSID(self.ssids[i], temp_SSID)
                         self.ssids[temp_SSID['number']] = await self.db.wireless.updateNetworkWirelessSsid(self.net_id,**temp_SSID)
                         #print(f"Written netID[{self.net_id}] SSID {self.ssids[temp_SSID['number']]}")
                         self.CLEAN = False
                 except:
                     print(f'Error writing SSID[{temp_SSID["name"]}]')
-                    print(temp_SSID)
+                    #print(temp_SSID)
+                    print("Self:")
+                    print(self.ssids[i])
+                    print("Master:")
+                    print(master.ssids[i])
                     print("Unexpected error:", sys.exc_info()) 
                     raise
 
+
+            
             #Clone the L3 FW rules
+            self.removeKey(self.ssids_l3[i],'ipVer')  #use case where one L3 ruleset omits the ipVer key/value pair
+            self.removeKey(master.ssids_l3[i],'ipVer') #same as above
             if not self.compare(self.ssids_l3[i], master.ssids_l3[i]):
                 #print(f'L3 is not the same')
                 print(f'\t\t-{bc.OKBLUE} Copied L3 rules for SSID[{self.ssids[i]["name"]}] ')
+                #print(f' SELF: ')
+                #print(self.ssids_l3[i])
+                #print(f' MASTER:')
+                #print(master.ssids_l3[i])
+                #print(self.compare(self.ssids_l3[i], master.ssids_l3[i]))
                 lanAccess = True
                 l3rules = copy.deepcopy(master.ssids_l3[i])
                 newL3 = {}
@@ -1193,6 +1302,11 @@ class mNET:
                         found = True
                         if not self.soft_compare(masterRF, selfRF): #It's in there but might not be the same
                             print(f'\t{bc.OKBLUE}RF Profile[{bc.WARNING}{masterRF["name"]}{bc.OKBLUE}] !!! Updating RF Profile{bc.ENDC}')
+                            #print("SELF:")
+                            #print(selfRF)
+                            #print("MASTER:")
+                            #print(masterRF)
+                            print()
                             newRF = copy.deepcopy(masterRF)
                             newRF.pop('id')
                             newRF.pop('networkId')
@@ -1210,12 +1324,13 @@ class mNET:
                     newRF.pop('networkId')
                     newRF = self.MR_rfp_pwr(newRF)
                     if self.WRITE:
+                        self.CLEAN = False
                         try: 
                             await self.db.wireless.createNetworkWirelessRfProfile(self.net_id,**newRF)
                         except:
                             print(f'\t {bc.FAIL}ERROR: Can\'t create duplicate RF Profile')
                             print(newRF)
-                        self.CLEAN = False
+                            await self.u_getNetworkWirelessRfProfiles()                            
             #wouldn't be here without something being different, so at least resync this part
         if not self.CLEAN:
             await self.u_getNetworkWirelessRfProfiles()
@@ -1237,8 +1352,18 @@ class mNET:
                 #ipsks are not empty, find the matching group policy
                 new_ipsk = copy.deepcopy(m_ipsk)
                 new_ipsk.pop('id') #pop off the ID from master, new one will be created "local"
+
+                #quick GP count
+                if len(self.getNetworkGroupPolicies) == 0:
+                    print("No GPs!")
+                    await self.u_getNetworkGroupPolicies()
+            
                 master_GP_tmp = master.find_fromGPID(master.getNetworkGroupPolicies, str(new_ipsk['groupPolicyId'])) 
                 local_GP_tmp = self.find_fromName(self.getNetworkGroupPolicies, str(master_GP_tmp['name']))
+                if local_GP_tmp == None:
+                    print("Can't find local GP")
+                    await self.u_getNetworkGroupPolicies()
+                    continue
                 new_ipsk['groupPolicyId'] = local_GP_tmp['groupPolicyId']
                 exists = False
                 for s_ipsk in self.ssids_ipsk[ssid_num]:

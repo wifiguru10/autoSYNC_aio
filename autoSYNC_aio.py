@@ -46,6 +46,11 @@ def loadCFG(db,filename):
         cfg['LOOP'] = True
     else:
         cfg['LOOP'] = False
+    
+    if "LOOP_LIMIT" in config['autoSYNC']:
+        cfg['LOOP_LIMIT'] = config['autoSYNC']['LOOP_LIMIT']
+    else:
+        cfg['LOOP_LIMIT'] = 0 #unlimited
 
     if 'true' in config['autoSYNC']['WRITE'].lower(): 
         cfg['WRITE'] = True
@@ -104,6 +109,9 @@ async def main():
             output_log=True,
             log_file_prefix=os.path.basename(__file__)[:-3],
             log_path='Logs/',
+            maximum_concurrent_requests=10,
+            maximum_retries= 100,
+            wait_on_rate_limit=True,
             print_console=False,
     ) as aiomeraki:
         configFile = 'autoSYNC.cfg'
@@ -244,7 +252,7 @@ async def main():
                 for ic in inscope_clones:
                     if not ic in mNets:
                         print(f'{bcolors.FAIL}New Network detected!!! NetID[{bcolors.WARNING}{ic}{bcolors.FAIL}]')
-                        print(f'THIS NEVER SHULD HAPPEN AT THIS POINT')
+                        print(f'THIS NEVER SHOULD HAPPEN AT THIS POINT')
                         sys.exit(1)
                         mNets[ic] = await mNET(aiomeraki, ic, cfg, WRITE).loadCache()
                         await mNets[ic].cloneFrom(mNets[master_netid])
@@ -344,9 +352,16 @@ async def main():
 
 
 if __name__ == '__main__':
-    startScript = time()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main()) 
-    endScript = time()
-    duration = round(endScript - startScript,2)
-    print(f'Script completed in [{duration}] Seconds')
+    safety_loop = 0
+    while True:
+        safety_loop += 1
+        #try:
+        startScript = time()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main()) 
+        endScript = time()
+        duration = round(endScript - startScript,2)
+        print(f'Script completed in [{duration}] Seconds')
+        #except:
+        #    print(sys.exc_info())
+        #    if safety_loop > 10: break
