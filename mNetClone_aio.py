@@ -401,11 +401,20 @@ class mNET:
    
     async def u_getSSIDS(self):
         self.ssids = []
-        
+        for ssid_num in range(0,15):
+            self.ssids.append({})
+
+        loadSSIDTasks = [self.db.wireless.getNetworkWirelessSsid(self.net_id, ssid_num) for ssid_num in range(0,15)]
+        for task in asyncio.as_completed(loadSSIDTasks):
+            ssid = await task
+            index = ssid['number']
+            self.ssids[index] = ssid
+
         for ssid_num in range(0,15):
             #await asyncio.sleep(0.1)
-            ssid_tmp = await self.db.wireless.getNetworkWirelessSsid(self.net_id, ssid_num)
-            self.ssids.append(ssid_tmp)
+            #ssid_tmp = await self.db.wireless.getNetworkWirelessSsid(self.net_id, ssid_num)
+            ssid_tmp = self.ssids[ssid_num]
+            #self.ssids.append(ssid_tmp)
             if not "Unconfigured SSID" in ssid_tmp['name'] and not ssid_num in self.ssids_range:
                 self.ssids_range.append(ssid_num)
         return self.ssids
@@ -774,7 +783,7 @@ class mNET:
                         try:
                             await self.db.networks.createNetworkWebhooksHttpServer(self.net_id, **mwh_tmp)
                         except:
-                            print("{bc.FAIL} Error writing webhooks... something went wrong with this webhook....{bc.ENDC}")
+                            print(f"{bc.FAIL} Error writing webhooks... something went wrong with this webhook.... in network[{self.net_id}] {bc.ENDC}")
                             print(mwh_tmp)
 
         if not self.CLEAN:
@@ -817,10 +826,11 @@ class mNET:
                     try:
                         self.CLEAN = False
                         self.fixGPL3(tempGP)
-                        print(f"Trying to write to {self.net_id}")
-                        print(tempGP)
+                        #print(f"Trying to write to {self.net_id}")
+                        #print(tempGP)
                         await self.db.networks.createNetworkGroupPolicy(self.net_id,**tempGP)
                     except:
+                        print(f"{bc.OKBLUE}ERROR creating GP[{tempGP['name']}] {bc.ENDC}")
                         foo = sys.exc_info()[1].message['errors']
                         for f in foo:
                             if 'Content Filtering settings are not supported' in f:
@@ -1178,7 +1188,7 @@ class mNET:
 
 
                 try:
-                    print(f'Writing {temp_SSID}')
+                    #print(f'Writing {temp_SSID}')
                     #print()
                     if self.WRITE:
                         self.fixSSID(self.ssids[i], temp_SSID)
@@ -1300,7 +1310,8 @@ class mNET:
                     if masterRF['name'] == selfRF['name']:
                         #print(f'RF Profile[{masterRF["name"]}] FOUND')
                         found = True
-                        if not self.soft_compare(masterRF, selfRF): #It's in there but might not be the same
+                        #don't update the RF profile, just create if net-new
+                        '''if not self.soft_compare(masterRF, selfRF): #It's in there but might not be the same
                             print(f'\t{bc.OKBLUE}RF Profile[{bc.WARNING}{masterRF["name"]}{bc.OKBLUE}] !!! Updating RF Profile{bc.ENDC}')
                             #print("SELF:")
                             #print(selfRF)
@@ -1315,7 +1326,8 @@ class mNET:
                             if self.WRITE: 
                                 await self.db.wireless.updateNetworkWirelessRfProfile(self.net_id,selfRF['id'], **newRF) 
                                 self.CLEAN = False
-                    
+                        '''
+
                 #no more RFProfiles in self, create one
                 if not found: 
                     print(f'\t{bc.OKBLUE}RF Profile[{bc.WARNING}{masterRF["name"]}{bc.OKBLUE}]!!! New RFP created in network{bc.ENDC}')
