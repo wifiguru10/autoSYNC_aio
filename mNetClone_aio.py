@@ -1367,7 +1367,7 @@ class mNET:
 
                 #quick GP count
                 if len(self.getNetworkGroupPolicies) == 0:
-                    print("No GPs!")
+                    #print("No GPs!")
                     await self.u_getNetworkGroupPolicies()
             
                 master_GP_tmp = master.find_fromGPID(master.getNetworkGroupPolicies, str(new_ipsk['groupPolicyId'])) 
